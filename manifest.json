@@ -1,0 +1,13 @@
+{
+  "name": "Inspecciones de Servicio — PETROSAR",
+  "short_name": "Inspecciones",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1e2d3e",
+  "theme_color": "#1e2d3e",
+  "orientation": "portrait",
+  "icons": [
+    {"src": "https://via.placeholder.com/192/1e2d3e/e8a020?text=IS", "sizes": "192x192", "type": "image/png"},
+    {"src": "https://via.placeholder.com/512/1e2d3e/e8a020?text=IS", "sizes": "512x512", "type": "image/png"}
+  ]
+}

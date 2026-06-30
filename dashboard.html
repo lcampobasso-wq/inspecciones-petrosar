@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Inspecciones de Servicio — PETROSAR SA</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root{
+    --ps-bg:#f0f2f6; --ps-header-bg:#1e2d3e; --ps-header-bg2:#192638;
+    --ps-card:#fff; --ps-border:#e2e8f0; --ps-text:#1a202c; --ps-muted:#718096;
+    --ps-accent:#e8a020; --ps-accent2:#f05a28;
+    --ok:#16a34a; --okbg:#dcfce7; --nc:#dc2626; --ncbg:#fee2e2; --warn:#d97706; --warnbg:#fef3c7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--ps-bg);color:var(--ps-text)}
+  .ps-header{background:linear-gradient(135deg,var(--ps-header-bg),var(--ps-header-bg2));color:#fff;padding:16px 24px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+  .ps-logo img{width:42px;height:42px;object-fit:contain;border-radius:9px;background:#fff;padding:3px}
+  .ps-header-title{font-size:20px;font-weight:700}
+  .ps-header-sub{font-size:12px;opacity:.7;margin-top:1px}
+  .refresh{margin-left:auto;background:rgba(255,255,255,.12);border:none;color:#fff;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:9px;cursor:pointer}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px}
+  /* FILTROS */
+  .filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;align-items:end}
+  .filters .fg{display:flex;flex-direction:column;gap:5px}
+  .filters label{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--ps-muted);letter-spacing:.4px}
+  .filters select,.filters input{font-family:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--ps-border);border-radius:9px;background:#fff;min-width:160px}
+  .filters button{font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:9px;border:1px solid var(--ps-border);background:#fff;cursor:pointer}
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
+  .kpi{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .kpi .v{font-size:30px;font-weight:800;color:var(--ps-header-bg);line-height:1}
+  .kpi .l{font-size:11px;text-transform:uppercase;color:var(--ps-muted);font-weight:600;margin-top:7px;letter-spacing:.3px}
+  .kpi.accent .v{color:var(--ps-accent)}
+  .kpi.danger .v{color:var(--nc)}
+  /* GRID GRAFICOS */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+  .card{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .card-title{font-size:14px;font-weight:700;color:var(--ps-header-bg);margin-bottom:14px}
+  .chart-box{position:relative;height:240px}
+  /* TABLA */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:11px 12px;background:#f8fafc;color:var(--ps-muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--ps-border);font-weight:700}
+  td{padding:12px;border-bottom:1px solid var(--ps-border);vertical-align:middle}
+  tr.exp-row td{background:#f8fafc;padding:0}
+  .pct-badge{display:inline-block;font-weight:800;font-size:15px}
+  .tag{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;background:var(--ps-header-bg);color:#fff;margin:1px 3px 1px 0}
+  .st{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;text-transform:uppercase}
+  .st.sync{background:var(--okbg);color:var(--ok)} .st.nc{background:var(--ncbg);color:var(--nc)}
+  .row-toggle{cursor:pointer}
+  .row-toggle:hover{background:#fafbfc}
+  .detail{padding:16px 20px}
+  .detail h4{font-size:13px;color:var(--ps-header-bg);margin:8px 0 6px}
+  .ditem{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--ps-border);font-size:13px}
+  .ditem .res{font-weight:700;font-size:11px;padding:2px 8px;border-radius:5px;min-width:42px;text-align:center}
+  .res.C{background:var(--okbg);color:var(--ok)} .res.NC{background:var(--ncbg);color:var(--nc)} .res.NA{background:#f1f5f9;color:var(--na,#6b7280)}
+  .dthumb{width:42px;height:42px;border-radius:7px;object-fit:cover;border:1px solid var(--ps-border);cursor:pointer}
+  .empty{text-align:center;color:var(--ps-muted);padding:50px;font-size:14px}
+  .export-btn{font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:9px;border:1px solid var(--ps-border);background:#fff;cursor:pointer;margin-left:auto}
+  .tbl-head{display:flex;align-items:center;margin-bottom:14px}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
+  /* lightbox */
+  .lb{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;cursor:zoom-out}
+  .lb img{max-width:90%;max-height:90%;border-radius:8px}
+  .lb.show{display:flex}
+</style>
+</head>
+<body>
+
+<header class="ps-header">
+  <div class="ps-logo"><img id="logo" alt="PETROSAR"></div>
+  <div>
+    <div class="ps-header-title">Dashboard de Inspecciones de Servicio</div>
+    <div class="ps-header-sub">RO-P-05-01 · Transporte de Personal · PETROSAR SA</div>
+  </div>
+  <button class="refresh" onclick="cargar()">↻ Actualizar</button>
+</header>
+
+<div class="wrap">
+
+  <div class="filters">
+    <div class="fg"><label>Desde</label><input type="date" id="f_desde"></div>
+    <div class="fg"><label>Hasta</label><input type="date" id="f_hasta"></div>
+    <div class="fg"><label>Sitio</label><select id="f_sitio"><option value="">Todos</option></select></div>
+    <div class="fg"><label>Observador</label><select id="f_obs"><option value="">Todos</option></select></div>
+    <div class="fg"><label>Bloque</label><select id="f_bloque"><option value="">Todos</option></select></div>
+    <button onclick="aplicar()">Filtrar</button>
+    <button onclick="limpiar()">Limpiar</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="k_total">—</div><div class="l">Inspecciones</div></div>
+    <div class="kpi accent"><div class="v" id="k_prom">—</div><div class="l">Conformidad prom.</div></div>
+    <div class="kpi"><div class="v" id="k_items">—</div><div class="l">Ítems evaluados</div></div>
+    <div class="kpi danger"><div class="v" id="k_nc">—</div><div class="l">Ítems No Conf.</div></div>
+    <div class="kpi danger"><div class="v" id="k_ncs">—</div><div class="l">NC generadas</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="card"><div class="card-title">📈 Tendencia de conformidad</div><div class="chart-box"><canvas id="chTrend"></canvas></div></div>
+    <div class="card"><div class="card-title">📍 Conformidad por sitio</div><div class="chart-box"><canvas id="chSitio"></canvas></div></div>
+    <div class="card"><div class="card-title">🧩 No Conformes por bloque</div><div class="chart-box"><canvas id="chBloque"></canvas></div></div>
+    <div class="card"><div class="card-title">👤 Inspecciones por observador</div><div class="chart-box"><canvas id="chObs"></canvas></div></div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-head">
+      <div class="card-title" style="margin:0">📋 Detalle de inspecciones</div>
+      <button class="export-btn" onclick="exportCSV()">⬇️ Exportar CSV</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th></th><th>Fecha</th><th>Sitio</th><th>Observador</th><th>Bloques</th>
+          <th>Conductor</th><th>Conf.</th><th>NC</th><th>%</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="emptyMsg" class="empty" style="display:none">Sin inspecciones para los filtros seleccionados</div>
+  </div>
+
+</div>
+
+<div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbImg"></div>
+
+<script>
+const SB_URL='https://atnnhefwyfjhwcudtlbe.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bm5oZWZ3eWZqaHdjdWR0bGJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1OTg5NDIsImV4cCI6MjA4NTE3NDk0Mn0.yGvsttKLujVlpINgPUuGlZe5EQ3int4NMy7BI47UqJE'; // ← pegá tu anon key
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const LOGO='data:image/png;base64,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';
+document.getElementById('logo').src=LOGO;
+
+let DATA=[];        // inspecciones con sus resultados
+let charts={};
+
+async function cargar(){
+  try{
+    const {data:insp,error}=await sb.from('is_inspecciones').select('*').order('fecha_control',{ascending:false});
+    if(error)throw error;
+    // traer resultados de todas
+    const ids=insp.map(i=>i.id);
+    let res=[];
+    if(ids.length){
+      const {data:rr}=await sb.from('is_resultados').select('*').in('inspeccion_id',ids);
+      res=rr||[];
+    }
+    DATA=insp.map(i=>({...i,resultados:res.filter(r=>r.inspeccion_id===i.id)}));
+    poblarFiltros();
+    aplicar();
+  }catch(e){
+    console.error(e);
+    document.getElementById('emptyMsg').textContent='Error al cargar datos. Revisá la anon key y la conexión.';
+    document.getElementById('emptyMsg').style.display='block';
+  }
+}
+
+function poblarFiltros(){
+  const sitios=[...new Set(DATA.map(i=>i.sitio).filter(Boolean))].sort();
+  const obs=[...new Set(DATA.map(i=>i.observador).filter(Boolean))].sort();
+  const bloques=[...new Set(DATA.flatMap(i=>i.bloques_inspeccionados||[]))].sort();
+  fill('f_sitio',sitios);fill('f_obs',obs);fill('f_bloque',bloques);
+}
+function fill(id,arr){
+  const s=document.getElementById(id);const cur=s.value;
+  s.innerHTML='<option value="">Todos</option>'+arr.map(v=>`<option>${v}</option>`).join('');
+  s.value=cur;
+}
+
+function filtrar(){
+  const d=document.getElementById('f_desde').value, h=document.getElementById('f_hasta').value;
+  const s=document.getElementById('f_sitio').value, o=document.getElementById('f_obs').value, b=document.getElementById('f_bloque').value;
+  return DATA.filter(i=>{
+    if(d && (i.fecha_control||'')<d)return false;
+    if(h && (i.fecha_control||'')>h)return false;
+    if(s && i.sitio!==s)return false;
+    if(o && i.observador!==o)return false;
+    if(b && !(i.bloques_inspeccionados||[]).includes(b))return false;
+    return true;
+  });
+}
+
+function aplicar(){
+  const f=filtrar();
+  renderKPIs(f);renderCharts(f);renderTabla(f);
+}
+function limpiar(){
+  ['f_desde','f_hasta','f_sitio','f_obs','f_bloque'].forEach(id=>document.getElementById(id).value='');
+  aplicar();
+}
+
+function renderKPIs(f){
+  const total=f.length;
+  const prom=total?Math.round(f.reduce((s,i)=>s+(+i.pct_conformidad||0),0)/total):0;
+  const items=f.reduce((s,i)=>s+(i.total_items||0),0);
+  const nc=f.reduce((s,i)=>s+(i.total_nc||0),0);
+  const ncs=f.filter(i=>i.total_nc>0).length; // inspecciones que generaron NC
+  document.getElementById('k_total').textContent=total;
+  document.getElementById('k_prom').textContent=total?prom+'%':'—';
+  document.getElementById('k_items').textContent=items;
+  document.getElementById('k_nc').textContent=nc;
+  document.getElementById('k_ncs').textContent=ncs;
+}
+
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),cfg);}
+const NAVY='#1e2d3e',AMBER='#e8a020',RED='#dc2626',GREEN='#16a34a';
+
+function renderCharts(f){
+  // Tendencia: % promedio por fecha
+  const porFecha={};
+  f.forEach(i=>{const k=i.fecha_control||'?';(porFecha[k]=porFecha[k]||[]).push(+i.pct_conformidad||0);});
+  const fechas=Object.keys(porFecha).sort();
+  mkChart('chTrend',{type:'line',data:{labels:fechas,
+    datasets:[{label:'% Conformidad',data:fechas.map(k=>Math.round(porFecha[k].reduce((a,b)=>a+b,0)/porFecha[k].length)),
+    borderColor:AMBER,backgroundColor:'rgba(232,160,32,.12)',fill:true,tension:.3,pointRadius:3}]},
+    options:chartOpts(true)});
+
+  // Por sitio: % promedio
+  const porSitio={};
+  f.forEach(i=>{const k=i.sitio||'Sin sitio';(porSitio[k]=porSitio[k]||[]).push(+i.pct_conformidad||0);});
+  const sitios=Object.keys(porSitio);
+  mkChart('chSitio',{type:'bar',data:{labels:sitios,
+    datasets:[{label:'% Conf.',data:sitios.map(k=>Math.round(porSitio[k].reduce((a,b)=>a+b,0)/porSitio[k].length)),
+    backgroundColor:sitios.map(k=>{const v=porSitio[k].reduce((a,b)=>a+b,0)/porSitio[k].length;return v>=90?GREEN:v>=70?AMBER:RED;})}]},
+    options:chartOpts(true)});
+
+  // NC por bloque
+  const porBloque={};
+  f.forEach(i=>i.resultados.filter(r=>r.resultado==='NC').forEach(r=>{porBloque[r.bloque_nombre]=(porBloque[r.bloque_nombre]||0)+1;}));
+  const bloques=Object.keys(porBloque);
+  mkChart('chBloque',{type:'bar',data:{labels:bloques,
+    datasets:[{label:'No Conformes',data:bloques.map(k=>porBloque[k]),backgroundColor:RED}]},
+    options:{...chartOpts(false),indexAxis:'y'}});
+
+  // Inspecciones por observador
+  const porObs={};
+  f.forEach(i=>{const k=i.observador||'—';porObs[k]=(porObs[k]||0)+1;});
+  const obs=Object.keys(porObs);
+  mkChart('chObs',{type:'bar',data:{labels:obs,
+    datasets:[{label:'Inspecciones',data:obs.map(k=>porObs[k]),backgroundColor:NAVY}]},
+    options:chartOpts(false)});
+}
+function chartOpts(pct){return{responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{y:{beginAtZero:true,max:pct?100:undefined,ticks:{callback:v=>pct?v+'%':v}}}};}
+
+function renderTabla(f){
+  const tb=document.getElementById('tbody');
+  document.getElementById('emptyMsg').style.display=f.length?'none':'block';
+  tb.innerHTML=f.map((i,idx)=>{
+    const col=i.pct_conformidad>=90?GREEN:i.pct_conformidad>=70?AMBER:RED;
+    const bloquesT=(i.bloques_inspeccionados||[]).map(b=>`<span class="tag">${b}</span>`).join('');
+    return `<tr class="row-toggle" onclick="toggleDet(${idx})">
+      <td>▸</td>
+      <td>${i.fecha_control||''}</td>
+      <td><b>${i.sitio||'—'}</b></td>
+      <td>${i.observador||'—'}</td>
+      <td>${bloquesT||'—'}</td>
+      <td>${i.conductor||'—'}</td>
+      <td>${i.total_conformes||0}</td>
+      <td>${i.total_nc>0?`<span class="st nc">${i.total_nc} NC</span>`:'0'}</td>
+      <td><span class="pct-badge" style="color:${col}">${i.pct_conformidad??0}%</span></td>
+    </tr>
+    <tr class="exp-row" id="det-${idx}" style="display:none"><td colspan="9">${detalleHTML(i)}</td></tr>`;
+  }).join('');
+}
+
+function detalleHTML(i){
+  const byBloque={};
+  i.resultados.forEach(r=>{(byBloque[r.bloque_nombre]=byBloque[r.bloque_nombre]||[]).push(r);});
+  let h='<div class="detail">';
+  Object.entries(byBloque).forEach(([bl,items])=>{
+    h+=`<h4>${bl}</h4>`;
+    items.forEach(r=>{
+      h+=`<div class="ditem">
+        <span class="res ${r.resultado}">${r.resultado||'—'}</span>
+        <span style="flex:1">${r.item_texto}${r.nota?` <i style="color:var(--ps-muted)">— ${r.nota}</i>`:''}</span>
+        ${r.foto_url?`<img class="dthumb" src="${r.foto_url}" onclick="lb('${r.foto_url}')">`:''}
+        ${r.nc_id?`<span class="tag" style="background:var(--nc)">NC</span>`:''}
+      </div>`;
+    });
+  });
+  if(i.observacion_general)h+=`<h4>Observación general</h4><p style="font-size:13px;color:var(--ps-muted)">${i.observacion_general}</p>`;
+  h+='</div>';
+  return h;
+}
+
+function toggleDet(idx){
+  const d=document.getElementById('det-'+idx);
+  d.style.display=d.style.display==='none'?'table-row':'none';
+}
+function lb(url){event.stopPropagation();document.getElementById('lbImg').src=url;document.getElementById('lb').classList.add('show');}
+
+function exportCSV(){
+  const f=filtrar();
+  let rows=[['Fecha','Sitio','Observador','Bloques','Conductor','Unidad','Bloque','Item','Resultado','Nota','%Conf']];
+  f.forEach(i=>i.resultados.forEach(r=>{rows.push([
+    i.fecha_control||'',i.sitio||'',i.observador||'',(i.bloques_inspeccionados||[]).join(' / '),
+    i.conductor||'',i.unidad||'',r.bloque_nombre,r.item_texto,r.resultado||'',
+    (r.nota||'').replace(/[\n,]/g,' '),i.pct_conformidad??''
+  ]);}));
+  const csv=rows.map(r=>r.map(c=>`"${(c+'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='inspecciones_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+cargar();
+</script>
+</body>
+</html>
