@@ -560,7 +560,8 @@ async function crearNCunica(insp,itemsNC){
       fecha_desvio:insp.fecha_control||new Date().toISOString().slice(0,10),
       fecha_comunicacion:insp.fecha_control||new Date().toISOString().slice(0,10),
       descripcion_desvio:desc,
-      evidencias_nc:evidencias   // siempre array (aunque vacío) para no romper NC Manager
+      estado:'Pendiente',        // NC Manager necesita estado no-null para el badge
+      evidencias_nc:evidencias   // siempre array (aunque vacío)
     };
     const {data,error}=await sb.from('no_conformidades')
       .upsert(payload,{onConflict:'numero'}).select().single();
