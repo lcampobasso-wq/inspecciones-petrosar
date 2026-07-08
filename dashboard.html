@@ -59,14 +59,14 @@
 
   .rank-list{display:flex;flex-direction:column;gap:12px}
   .rank-row{display:flex;align-items:center;gap:14px}
-  .rank-pos{width:30px;height:30px;border-radius:9px;background:var(--redbg);color:var(--red);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .rank-pos.top{background:var(--red);color:#fff;box-shadow:0 3px 8px rgba(220,38,38,.28)}
+  .rank-pos{width:30px;height:30px;border-radius:9px;background:#e8effc;color:#2c5282;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .rank-pos.top{background:#2c5282;color:#fff;box-shadow:0 3px 8px rgba(44,82,130,.28)}
   .rank-body{flex:1;min-width:0}
   .rank-txt{font-size:13.5px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
   .rank-txt small{color:var(--muted2);font-weight:500}
   .rank-bar{height:9px;background:#f0f2f6;border-radius:6px;overflow:hidden}
-  .rank-bar span{display:block;height:100%;background:linear-gradient(90deg,#dc2626,#f97066);border-radius:6px;transition:width .5s}
-  .rank-cnt{font-weight:800;font-size:17px;color:var(--red);flex-shrink:0;min-width:26px;text-align:right}
+  .rank-bar span{display:block;height:100%;background:linear-gradient(90deg,#2c5282,#7ba7d4);border-radius:6px;transition:width .5s}
+  .rank-cnt{font-weight:800;font-size:17px;color:#2c5282;flex-shrink:0;min-width:26px;text-align:right}
 
   .tbl-wrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -139,21 +139,36 @@
     <button class="fbtn ghost" onclick="limpiar()">Limpiar</button>
   </div>
 
+  <div class="card">
+    <div class="card-head">
+      <div class="card-ic ic-blue">📅</div>
+      <div class="card-title">Evolución anual</div>
+      <div class="card-sub" id="evoSub">Meta: 4 inspecciones/mes</div>
+      <select id="f_anio" onchange="renderEvo();aplicar()" style="margin-left:14px;font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fbfcfe;color:var(--text);cursor:pointer"></select>
+    </div>
+    <div class="chart-box" style="height:260px"><canvas id="chEvo"></canvas></div>
+  </div>
+
   <div class="charts">
     <div class="card" style="margin:0">
       <div class="card-head"><div class="card-ic ic-amber">📈</div><div class="card-title">Tendencia de conformidad</div></div>
       <div class="chart-box"><canvas id="chTrend"></canvas></div>
     </div>
     <div class="card" style="margin:0">
-      <div class="card-head"><div class="card-ic ic-green">📍</div><div class="card-title">Conformidad por sitio</div></div>
-      <div class="chart-box"><canvas id="chSitio"></canvas></div>
+      <div class="card-head"><div class="card-ic ic-blue">🍩</div><div class="card-title">Distribución por bloque</div></div>
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <div style="position:relative;width:170px;height:170px;flex-shrink:0"><canvas id="chDona" role="img" aria-label="Distribución de inspecciones por bloque"></canvas></div>
+        <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:11px" id="donaLeyenda"></div>
+      </div>
     </div>
   </div>
 
   <div class="charts">
     <div class="card" style="margin:0">
-      <div class="card-head"><div class="card-ic ic-red">🧩</div><div class="card-title">No Conformes por bloque</div></div>
-      <div class="chart-box"><canvas id="chBloque"></canvas></div>
+      <div class="card-head"><div class="card-ic ic-red">⚠️</div><div class="card-title">No Conformidades por mes</div>
+        <div class="card-sub"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:10px;height:10px;border-radius:3px;background:#2c5282;display:inline-block"></span>NC gen.</span><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#a9c8e8;display:inline-block"></span>Ítems NC</span></div>
+      </div>
+      <div class="chart-box"><canvas id="chNCmes"></canvas></div>
     </div>
     <div class="card" style="margin:0">
       <div class="card-head"><div class="card-ic ic-navy">👤</div><div class="card-title">Inspecciones por observador</div></div>
@@ -196,6 +211,17 @@ document.getElementById('logo').src=LOGO;
 
 let DATA=[], charts={};
 const NAVY='#1a2744',AMBER='#e8a020',RED='#dc2626',GREEN='#16a34a',GREY='#94a3b8';
+// Paleta corporativa suave (azules/celestes) para los gráficos
+const C={
+  deep:'#2c5282',      // azul profundo
+  mid:'#4a7bb5',       // azul medio
+  soft:'#7ba7d4',      // celeste suave
+  light:'#a9c8e8',     // celeste claro
+  pale:'#cfe0f1',      // celeste pálido
+  line:'#4a7bb5', lineFill:'rgba(74,123,181,.12)'
+};
+// escala de azul según valor (para conformidad por sitio): más alto = más profundo
+function azulPorValor(v){ return v>=90?C.deep : v>=80?C.mid : v>=70?C.soft : C.light; }
 
 function normNombre(n){
   if(!n)return '—';
@@ -211,7 +237,7 @@ async function cargar(){
     let res=[];
     if(ids.length){const {data:rr}=await sb.from('is_resultados').select('*').in('inspeccion_id',ids);res=rr||[];}
     DATA=insp.map(i=>({...i,resultados:res.filter(r=>r.inspeccion_id===i.id)}));
-    poblarFiltros();aplicar();
+    poblarFiltros();poblarAnios();aplicar();renderEvo();
   }catch(e){
     console.error(e);
     document.getElementById('emptyMsg').textContent='Error al cargar datos. Revisá la anon key y la conexión.';
@@ -243,6 +269,38 @@ function filtrar(){
 function aplicar(){const f=filtrar();renderKPIs(f);renderCharts(f);renderTabla(f);}
 function limpiar(){['f_desde','f_hasta','f_sitio','f_obs','f_bloque'].forEach(id=>document.getElementById(id).value='');aplicar();}
 
+// ===== EVOLUCIÓN ANUAL (meta 4/mes, todos los observadores) =====
+const META_MES=4;
+function poblarAnios(){
+  const anios=[...new Set(DATA.map(i=>(i.fecha_control||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  const sel=document.getElementById('f_anio');
+  const actual=new Date().getFullYear().toString();
+  if(!anios.includes(actual))anios.unshift(actual);
+  sel.innerHTML=anios.map(a=>`<option>${a}</option>`).join('');
+}
+function renderEvo(){
+  const anio=document.getElementById('f_anio').value||new Date().getFullYear().toString();
+  const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const conteo=Array(12).fill(0);
+  DATA.forEach(i=>{
+    const fc=i.fecha_control||'';
+    if(fc.slice(0,4)===anio){const m=parseInt(fc.slice(5,7),10)-1;if(m>=0&&m<12)conteo[m]++;}
+  });
+  const cumplidos=conteo.filter(v=>v>=META_MES).length;
+  document.getElementById('evoSub').textContent=`Meta: ${META_MES}/mes · ${cumplidos}/12 meses cumplidos · ${conteo.reduce((a,b)=>a+b,0)} en el año`;
+  mkChart('chEvo',{data:{labels:meses,datasets:[
+    {type:'line',label:'Meta',data:meses.map(()=>META_MES),borderColor:'#e8a020',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,tension:0},
+    {type:'bar',label:'Inspecciones',data:conteo,
+      backgroundColor:conteo.map(v=>v>=META_MES?'#2c5282':v>0?'#7ba7d4':'#e6eaf1'),borderRadius:6,maxBarThickness:38}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2744',padding:11,cornerRadius:9,displayColors:false,
+      callbacks:{label:c=>c.dataset.label==='Meta'?`Meta: ${META_MES}`:`${c.parsed.y} inspección(es)`}}},
+    scales:{y:{beginAtZero:true,ticks:{stepSize:2,padding:8},grid:{color:'#eef1f6'},border:{display:false}},
+    x:{grid:{display:false},border:{display:false},ticks:{autoSkip:false}}}}
+  });
+}
+
 function renderKPIs(f){
   const total=f.length;
   const prom=total?Math.round(f.reduce((s,i)=>s+(+i.pct_conformidad||0),0)/total):0;
@@ -266,34 +324,76 @@ function renderCharts(f){
   const fechas=Object.keys(porFecha).sort();
   mkChart('chTrend',{type:'line',data:{labels:fechas,
     datasets:[{data:fechas.map(k=>Math.round(porFecha[k].reduce((a,b)=>a+b,0)/porFecha[k].length)),
-    borderColor:AMBER,backgroundColor:'rgba(232,160,32,.10)',fill:true,tension:.4,
-    pointRadius:4,pointBackgroundColor:AMBER,pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:3}]},
+    borderColor:C.line,backgroundColor:C.lineFill,fill:true,tension:.4,
+    pointRadius:4,pointBackgroundColor:C.line,pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:3}]},
     options:opts(true)});
 
-  const porSitio={};
-  f.forEach(i=>{const k=i.sitio||'Sin sitio';(porSitio[k]=porSitio[k]||[]).push(+i.pct_conformidad||0);});
-  const sitios=Object.keys(porSitio);
-  mkChart('chSitio',{type:'bar',data:{labels:sitios,
-    datasets:[{data:sitios.map(k=>Math.round(porSitio[k].reduce((a,b)=>a+b,0)/porSitio[k].length)),
-    backgroundColor:sitios.map(k=>{const v=porSitio[k].reduce((a,b)=>a+b,0)/porSitio[k].length;return v>=90?GREEN:v>=70?AMBER:RED;}),
-    borderRadius:7,maxBarThickness:48}]},options:opts(true)});
+  // ===== DONA: distribución + conformidad por bloque =====
+  // cuántas inspecciones cubrieron cada bloque, y conformidad promedio del bloque
+  const blq={}; // {bloque:{insp:0, conf:0, eval:0}}
+  f.forEach(i=>{
+    const bloquesDeEsta=[...new Set(i.resultados.map(r=>r.bloque_nombre))];
+    bloquesDeEsta.forEach(b=>{if(!blq[b])blq[b]={insp:0,conf:0,evalu:0};blq[b].insp++;});
+    i.resultados.forEach(r=>{
+      if(!blq[r.bloque_nombre])blq[r.bloque_nombre]={insp:0,conf:0,evalu:0};
+      if(r.resultado==='C'){blq[r.bloque_nombre].conf++;blq[r.bloque_nombre].evalu++;}
+      else if(r.resultado==='NC'){blq[r.bloque_nombre].evalu++;}
+    });
+  });
+  const palette=['#2c5282','#4a7bb5','#7ba7d4','#a9c8e8','#cfe0f1'];
+  const bloqNames=Object.keys(blq);
+  const totalInsp=bloqNames.reduce((s,b)=>s+blq[b].insp,0)||1;
+  mkChart('chDona',{type:'doughnut',
+    data:{labels:bloqNames,datasets:[{data:bloqNames.map(b=>blq[b].insp),
+      backgroundColor:bloqNames.map((_,i)=>palette[i%palette.length]),borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2744',padding:10,cornerRadius:8,displayColors:false,
+        callbacks:{label:c=>`${c.label}: ${c.parsed} insp.`}}}}});
+  const ley=document.getElementById('donaLeyenda');
+  ley.innerHTML=bloqNames.length?bloqNames.map((b,i)=>{
+    const share=Math.round(blq[b].insp/totalInsp*100);
+    const pct=blq[b].evalu?Math.round(blq[b].conf/blq[b].evalu*100):0;
+    const pcol=pct>=90?'#2c5282':pct>=75?'#4a7bb5':'#d97706';
+    return `<div style="display:flex;align-items:center;gap:10px">
+      <span style="width:12px;height:12px;border-radius:4px;background:${palette[i%palette.length]};flex-shrink:0"></span>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:12.5px;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b}</div>
+      <div style="font-size:11px;color:#7a869a">${blq[b].insp} insp · ${share}%</div></div>
+      <div style="font-weight:800;font-size:15px;color:${pcol}">${pct}%</div>
+    </div>`;
+  }).join(''):'<div style="color:var(--muted);font-size:13px">Sin datos</div>';
 
-  const porBloque={};
-  f.forEach(i=>i.resultados.filter(r=>r.resultado==='NC').forEach(r=>{porBloque[r.bloque_nombre]=(porBloque[r.bloque_nombre]||0)+1;}));
-  const bloques=Object.keys(porBloque);
-  mkChart('chBloque',{type:'bar',data:{labels:bloques,
-    datasets:[{data:bloques.map(k=>porBloque[k]),backgroundColor:'rgba(220,38,38,.82)',borderRadius:7,maxBarThickness:28}]},
-    options:{...opts(false),indexAxis:'y'}});
+  // ===== NC POR MES: generadas + ítems (año del selector) =====
+  renderNCmes(f);
 
+  // ===== Observador =====
   const porObs={};
   f.forEach(i=>{const k=normNombre(i.observador);porObs[k]=(porObs[k]||0)+1;});
   const obs=Object.keys(porObs).sort((a,b)=>porObs[b]-porObs[a]);
   mkChart('chObs',{type:'bar',data:{labels:obs,
-    datasets:[{data:obs.map(k=>porObs[k]),backgroundColor:NAVY,borderRadius:7,maxBarThickness:48}]},
+    datasets:[{data:obs.map(k=>porObs[k]),backgroundColor:C.deep,borderRadius:7,maxBarThickness:48}]},
     options:opts(false)});
 
+  // ===== Desglose ítem por ítem =====
   renderRanking(f);
 }
+
+function renderNCmes(f){
+  const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const anio=(document.getElementById('f_anio')||{}).value||new Date().getFullYear().toString();
+  const ncGen=Array(12).fill(0), ncItems=Array(12).fill(0);
+  f.forEach(i=>{
+    const fc=i.fecha_control||'';if(fc.slice(0,4)!==anio)return;
+    const m=parseInt(fc.slice(5,7),10)-1;if(m<0||m>11)return;
+    const items=i.resultados.filter(r=>r.resultado==='NC').length;
+    if(items>0)ncGen[m]++;           // 1 NC por inspección con no conformes
+    ncItems[m]+=items;               // ítems no conformes sueltos
+  });
+  mkChart('chNCmes',{type:'bar',data:{labels:meses,datasets:[
+    {label:'NC generadas',data:ncGen,backgroundColor:'#2c5282',borderRadius:5,maxBarThickness:20},
+    {label:'Ítems NC',data:ncItems,backgroundColor:'#a9c8e8',borderRadius:5,maxBarThickness:20}
+  ]},options:{...opts(false),scales:{...opts(false).scales,x:{...opts(false).scales.x,ticks:{autoSkip:false}}}}});
+}
+
 
 function renderRanking(f){
   const porItem={};
