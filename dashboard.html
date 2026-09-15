@@ -225,8 +225,18 @@ function azulPorValor(v){ return v>=90?C.deep : v>=80?C.mid : v>=70?C.soft : C.l
 
 function normNombre(n){
   if(!n)return '—';
-  const l=n.trim().replace(/\s+/g,' ').toLowerCase();
-  return l.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+  const base=n.trim().replace(/\s+/g,' ').toLowerCase();
+  // Alias: distintas escrituras de la misma persona → nombre canónico
+  const ALIAS={
+    'villegas karim':'Villegas, Karim',
+    'villegas guardo karim':'Villegas, Karim',
+    'karim villegas':'Villegas, Karim',
+    'fleitas daniel':'Fleitas, Daniel',
+    'daniel fleitas':'Fleitas, Daniel',
+    'feitas daniel':'Fleitas, Daniel'
+  };
+  if(ALIAS[base])return ALIAS[base];
+  return base.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
 }
 
 async function cargar(){

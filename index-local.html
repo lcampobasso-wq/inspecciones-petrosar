@@ -296,18 +296,15 @@ async function cargarObservadores(){
   const dl=document.getElementById('obsList');
   dl.innerHTML=obs.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
 }
-
-// Si el observador escrito no existe, lo agrega a la tabla y a la lista local
 async function guardarObservadorSiNuevo(nombre){
   if(!nombre)return;
   const n=nombre.trim();if(!n)return;
   const cache=JSON.parse(localStorage.getItem('is_observadores')||'[]');
-  // comparación flexible (case/espacios) para no duplicar
   const norm=s=>s.trim().replace(/\s+/g,' ').toLowerCase();
-  if(cache.some(x=>norm(x)===norm(n)))return; // ya existe
+  if(cache.some(x=>norm(x)===norm(n)))return;
   cache.push(n);localStorage.setItem('is_observadores',JSON.stringify(cache.sort()));
   if(navigator.onLine){
-    try{await sb.from('is_observadores').insert({nombre:n});}catch(e){console.warn('obs no guardado (quizá ya existe):',e.message);}
+    try{await sb.from('is_observadores').insert({nombre:n});}catch(e){console.warn('obs no guardado:',e.message);}
   }
   cargarObservadores();
 }
@@ -822,7 +819,7 @@ function renumerar(){
 
 // ============ SERVICE WORKER ============
 // Service worker
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+// SW desactivado para prueba local (file://)
 </script>
 </body>
 </html>
